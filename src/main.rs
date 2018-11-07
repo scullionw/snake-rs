@@ -4,18 +4,41 @@ use ggez::graphics;
 use ggez::graphics::{DrawMode, Point2};
 use ggez::{Context, GameResult};
 use std::collections::VecDeque;
-use std::time::{Instant, Duration};
+use std::time::{Duration, Instant};
 
+const BOARD_WIDTH: f32 = 800.0;
 const BOARD_HEIGHT: f32 = 600.0;
-const BOARD_WIDTH: f32 = 600.0;
-const CELL_RADIUS: f32 = 100.0;
+const CELL_RADIUS: f32 = 20.0;
 const CELL_DIAMETER: f32 = 2.0 * CELL_RADIUS;
+
+// TODO: ggez::timer::yield, tempo matching article, check out example to compare
+
+trait Locate {
+    fn cartesian(&self) -> (f32, f32);
+    fn dist_to<T: Locate>(&self, other: &T) -> f32 {
+        let (x1, y1) = self.cartesian();
+        let (x2, y2) = other.cartesian();
+        (x2 - x1).hypot(y2 - y1)
+    }
+}
 
 #[derive(Copy, Clone)]
 struct SnakeCell {
     x: f32,
     y: f32,
     r: f32,
+}
+
+impl Locate for SnakeCell {
+    fn cartesian(&self) -> (f32, f32) {
+        (self.x, self.y)
+    }
+}
+
+impl Locate for Apple {
+    fn cartesian(&self) -> (f32, f32) {
+        (self.x, self.y)
+    }
 }
 
 #[derive(Copy, Clone)]
@@ -28,14 +51,24 @@ struct Apple {
 impl Apple {
     fn new() -> Apple {
         Apple {
-            x: rand::random::<f32>() * BOARD_WIDTH,
-            y: rand::random::<f32>() * BOARD_HEIGHT,
+            x: CELL_RADIUS,//rand::random::<f32>() * (BOARD_WIDTH - CELL_DIAMETER) + CELL_RADIUS,
+            y: 400.0,//rand::random::<f32>() * (BOARD_HEIGHT - CELL_DIAMETER) + CELL_RADIUS,
             r: CELL_RADIUS,
         }
     }
     fn eaten(&mut self) {
         self.x = rand::random::<f32>() * BOARD_WIDTH;
         self.y = rand::random::<f32>() * BOARD_HEIGHT;
+    }
+    fn draw(&self, ctx: &mut Context) -> GameResult<()> {
+        graphics::set_color(ctx, graphics::Color::new(1.0, 0.0, 0.0, 1.0))?;
+        graphics::circle(
+                ctx,
+                DrawMode::Fill,
+                Point2::new(self.x, self.y),
+                self.r,
+                0.1,
+        )
     }
 }
 
@@ -47,6 +80,35 @@ impl SnakeCell {
             r: CELL_RADIUS,
         }
     }
+    fn next_to(&self, dir: Direction) -> SnakeCell {
+        match dir {
+            Direction::Up => SnakeCell {
+                y: self.y - CELL_DIAMETER,
+                ..*self
+            },
+            Direction::Down => SnakeCell {
+                y: self.y + CELL_DIAMETER,
+                ..*self
+            },
+            Direction::Left => SnakeCell {
+                x: self.x - CELL_DIAMETER,
+                ..*self
+            },
+            Direction::Right => SnakeCell {
+                x: self.x + CELL_DIAMETER,
+                ..*self
+            },
+        }
+    }
+    fn draw(&self, ctx: &mut Context) -> GameResult<()> {
+        graphics::circle(
+                ctx,
+                DrawMode::Fill,
+                Point2::new(self.x, self.y),
+                self.r,
+                0.1,
+        )
+    }
 }
 
 struct Snake {
@@ -54,6 +116,7 @@ struct Snake {
     curr_dir: Direction,
 }
 
+#[derive(Copy, Clone)]
 enum Direction {
     Up,
     Down,
@@ -63,22 +126,33 @@ enum Direction {
 
 impl Snake {
     fn new() -> Snake {
+        let head = SnakeCell::new(CELL_RADIUS, 200.0);
+        let body = vec![head, head.next_to(Direction::Right)]
+            .into_iter()
+            .collect();
+
         Snake {
-            body: vec![SnakeCell::new(CELL_RADIUS, 380.0), SnakeCell::new(100.0 + CELL_DIAMETER, 380.0)].into_iter().collect(),
-            curr_dir: Direction::Right,
+            body,
+            curr_dir: Direction::Down,
         }
     }
-    fn advance(&mut self, food: bool, dir: Direction) {
-        if !food { self.body.pop_back(); };
-        let head = *self.body.front().unwrap();
-        let new_head = match dir {
-            Direction::Up => SnakeCell { y: head.y + CELL_DIAMETER, ..head },
-            Direction::Down => SnakeCell { y: head.y - CELL_DIAMETER, ..head },
-            Direction::Left => SnakeCell { x: head.x - CELL_DIAMETER, ..head },
-            Direction::Right => SnakeCell { x: head.x + CELL_DIAMETER, ..head },
-        };
+    fn shorten_tail(&mut self) {
+        self.body.pop_back();
+    }
+    fn advance(&mut self) {
+        let new_head = self.head().next_to(self.curr_dir);
         self.body.push_front(new_head);
-    } 
+    }
+    fn head(&self) -> SnakeCell {
+        *self.body.front().unwrap()
+    }
+    fn draw(&self, ctx: &mut Context) -> GameResult<()> {
+        graphics::set_color(ctx, graphics::Color::new(1.0, 1.0, 1.0, 1.0))?;
+        for cell in &self.body {
+            cell.draw(ctx)?;
+        }
+        Ok(())
+    }
 }
 
 struct MainState {
@@ -90,43 +164,43 @@ struct MainState {
 
 impl MainState {
     fn new(_ctx: &mut Context) -> GameResult<MainState> {
-        let s = MainState { frames: 0, snake: Snake::new(), apple: Apple::new(), last_move: Instant::now() };
+        let s = MainState {
+            frames: 0,
+            snake: Snake::new(),
+            apple: Apple::new(),
+            last_move: Instant::now(),
+        };
         Ok(s)
     }
 }
 
 impl event::EventHandler for MainState {
     fn update(&mut self, _ctx: &mut Context) -> GameResult<()> {
-        if self.last_move.elapsed() > Duration::from_secs(5) {
+        if self.last_move.elapsed() >= Duration::from_secs(1) {
             self.last_move = Instant::now();
-            self.snake.advance(false, Direction::Up);
+            self.snake.advance();
+            if self.apple.dist_to(&self.snake.head()) < CELL_DIAMETER {
+                println!("COLLISION!");
+                self.apple.eaten();
+                
+            } else {
+                self.snake.shorten_tail();
+            }
         }
-        
         Ok(())
     }
 
     fn draw(&mut self, ctx: &mut Context) -> GameResult<()> {
         graphics::clear(ctx);
-
-        for cell in &self.snake.body {
-            graphics::circle(
-                ctx,
-                DrawMode::Fill,
-                Point2::new(cell.x, cell.y),
-                cell.r,
-                0.1
-            )?;
-        }
-        
+        self.snake.draw(ctx)?;
+        self.apple.draw(ctx)?;
         //let dest_point = graphics::Point2::new(10.0, 10.0);
         // graphics::draw(ctx, &self.text, dest_point, 0.0)?;
         graphics::present(ctx);
-
         self.frames += 1;
         if (self.frames % 100) == 0 {
             println!("FPS: {}", ggez::timer::get_fps(ctx));
         }
-
         Ok(())
     }
 }
