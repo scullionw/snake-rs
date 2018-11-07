@@ -1,0 +1,9 @@
+[package]
+name = "snake"
+version = "0.1.0"
+authors = ["scullionw <scuw1801@usherbrooke.ca>"]
+edition = "2018"
+
+[dependencies]
+ggez = "0.4.4"
+rand = "0.5.5"
