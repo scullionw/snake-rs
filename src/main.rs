@@ -51,8 +51,8 @@ struct Apple {
 impl Apple {
     fn new() -> Apple {
         Apple {
-            x: CELL_RADIUS,//rand::random::<f32>() * (BOARD_WIDTH - CELL_DIAMETER) + CELL_RADIUS,
-            y: 400.0,//rand::random::<f32>() * (BOARD_HEIGHT - CELL_DIAMETER) + CELL_RADIUS,
+            x: CELL_RADIUS, //rand::random::<f32>() * (BOARD_WIDTH - CELL_DIAMETER) + CELL_RADIUS,
+            y: 400.0,       //rand::random::<f32>() * (BOARD_HEIGHT - CELL_DIAMETER) + CELL_RADIUS,
             r: CELL_RADIUS,
         }
     }
@@ -63,11 +63,11 @@ impl Apple {
     fn draw(&self, ctx: &mut Context) -> GameResult<()> {
         graphics::set_color(ctx, graphics::Color::new(1.0, 0.0, 0.0, 1.0))?;
         graphics::circle(
-                ctx,
-                DrawMode::Fill,
-                Point2::new(self.x, self.y),
-                self.r,
-                0.1,
+            ctx,
+            DrawMode::Fill,
+            Point2::new(self.x, self.y),
+            self.r,
+            0.1,
         )
     }
 }
@@ -102,11 +102,11 @@ impl SnakeCell {
     }
     fn draw(&self, ctx: &mut Context) -> GameResult<()> {
         graphics::circle(
-                ctx,
-                DrawMode::Fill,
-                Point2::new(self.x, self.y),
-                self.r,
-                0.1,
+            ctx,
+            DrawMode::Fill,
+            Point2::new(self.x, self.y),
+            self.r,
+            0.1,
         )
     }
 }
@@ -182,7 +182,6 @@ impl event::EventHandler for MainState {
             if self.apple.dist_to(&self.snake.head()) < CELL_DIAMETER {
                 println!("COLLISION!");
                 self.apple.eaten();
-                
             } else {
                 self.snake.shorten_tail();
             }
