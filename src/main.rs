@@ -9,11 +9,13 @@ use std::collections::VecDeque;
 use std::env;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
+use rand::Rng;
+use std::ops::Not;
 
-const BOARD_WIDTH: f32 = 800.0;
-const BOARD_HEIGHT: f32 = 600.0;
-const CELL_RADIUS: f32 = 5.0;
-const CELL_DIAMETER: f32 = 2.0 * CELL_RADIUS;
+const BOARD_WIDTH: u32 = 800;
+const BOARD_HEIGHT: u32 = 600;
+const CELL_RADIUS: u32 = 5;
+const CELL_DIAMETER: u32 = 2 * CELL_RADIUS;
 const SLOW_SPEED: u64 = 125;
 const FAST_SPEED: u64 = 25;
 
@@ -52,17 +54,43 @@ struct Apple {
     r: f32,
 }
 
+struct GridPosition;
+
+impl GridPosition {
+    fn random_x() -> f32 {
+        let mut rng = rand::thread_rng();
+        let x = CELL_RADIUS + rng.gen_range(0, BOARD_WIDTH / CELL_DIAMETER) * CELL_DIAMETER;
+        x as f32
+    }
+    fn random_y() -> f32 {
+        let mut rng = rand::thread_rng();
+        let y = CELL_RADIUS + rng.gen_range(0, BOARD_HEIGHT / CELL_DIAMETER) * CELL_DIAMETER;
+        y as f32
+    }
+    fn middle_x() -> f32 {
+        let slots = BOARD_WIDTH / CELL_DIAMETER;
+        let x = CELL_RADIUS + (slots / 2) * CELL_DIAMETER;
+        x as f32
+    }
+    fn middle_y() -> f32 {
+        let slots = BOARD_HEIGHT / CELL_DIAMETER;
+        let y = CELL_RADIUS + (slots / 2) * CELL_DIAMETER;
+        y as f32
+    }
+
+}
+
 impl Apple {
     fn new() -> Apple {
         Apple {
-            x: rand::random::<f32>() * (BOARD_WIDTH - CELL_DIAMETER) + CELL_RADIUS,
-            y: rand::random::<f32>() * (BOARD_HEIGHT - CELL_DIAMETER) + CELL_RADIUS,
-            r: CELL_RADIUS,
+            x: GridPosition::random_x(),
+            y: GridPosition::random_y(),
+            r: CELL_RADIUS as f32,
         }
     }
     fn eaten(&mut self) {
-        self.x = rand::random::<f32>() * (BOARD_WIDTH - CELL_DIAMETER) + CELL_RADIUS;
-        self.y = rand::random::<f32>() * (BOARD_HEIGHT - CELL_DIAMETER) + CELL_RADIUS;
+        self.x = GridPosition::random_x();
+        self.y = GridPosition::random_y();
     }
     fn draw(&self, ctx: &mut Context) -> GameResult<()> {
         graphics::set_color(ctx, graphics::Color::new(1.0, 0.0, 0.0, 1.0))?;
@@ -81,25 +109,25 @@ impl SnakeCell {
         SnakeCell {
             x,
             y,
-            r: CELL_RADIUS,
+            r: CELL_RADIUS as f32,
         }
     }
     fn next_to(&self, dir: Direction) -> SnakeCell {
         match dir {
             Direction::Up => SnakeCell {
-                y: self.y - CELL_DIAMETER,
+                y: self.y - CELL_DIAMETER as f32,
                 ..*self
             },
             Direction::Down => SnakeCell {
-                y: self.y + CELL_DIAMETER,
+                y: self.y + CELL_DIAMETER as f32,
                 ..*self
             },
             Direction::Left => SnakeCell {
-                x: self.x - CELL_DIAMETER,
+                x: self.x - CELL_DIAMETER as f32,
                 ..*self
             },
             Direction::Right => SnakeCell {
-                x: self.x + CELL_DIAMETER,
+                x: self.x + CELL_DIAMETER as f32,
                 ..*self
             },
         }
@@ -120,7 +148,7 @@ struct Snake {
     curr_dir: Direction,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 enum Direction {
     Up,
     Down,
@@ -128,16 +156,28 @@ enum Direction {
     Right,
 }
 
+impl Not for Direction {
+    type Output = Direction;
+
+    fn not(self) -> Direction {
+        match self {
+            Direction::Up => Direction::Down,
+            Direction::Down => Direction::Up,
+            Direction::Left => Direction::Right,
+            Direction::Right => Direction::Left,
+        }
+    }
+}
+
 impl Snake {
     fn new() -> Snake {
-        let head = SnakeCell::new(CELL_RADIUS, 200.0);
-        let body = vec![head, head.next_to(Direction::Right)]
+        let head = SnakeCell::new(GridPosition::middle_x(), GridPosition::middle_y());
+        let body = vec![head, head.next_to(Direction::Left)]
             .into_iter()
             .collect();
-
         Snake {
             body,
-            curr_dir: Direction::Down,
+            curr_dir: Direction::Right,
         }
     }
     fn shorten_tail(&mut self) {
@@ -163,7 +203,7 @@ impl Snake {
     fn body_check(&self) -> bool {
         let mut collisions = 0;
         for cell in &self.body {
-            if cell.dist_to(&self.head()) < CELL_RADIUS {
+            if cell.dist_to(&self.head()) < CELL_RADIUS as f32 {
                 collisions += 1;
             }
         }
@@ -179,8 +219,8 @@ struct Bounds {
 impl Bounds {
     fn new() -> Bounds {
         Bounds {
-            width: BOARD_WIDTH,
-            height: BOARD_HEIGHT,
+            width: BOARD_WIDTH as f32,
+            height: BOARD_HEIGHT as f32,
         }
     }
     fn check(&self, coord: (f32, f32)) -> bool {
@@ -267,7 +307,7 @@ impl event::EventHandler for MainState {
                     }
                     ctx.quit()?;
                 }
-                if self.apple.dist_to(&self.snake.head()) < CELL_DIAMETER {
+                if self.apple.dist_to(&self.snake.head()) < CELL_DIAMETER as f32 {
                     self.eating_sound.play().unwrap();
                     self.apple.eaten();
                     self.score.increment();
@@ -289,15 +329,22 @@ impl event::EventHandler for MainState {
         Ok(())
     }
     fn key_down_event(&mut self, _ctx: &mut Context, keycode: Keycode, _keymod: Mod, repeat: bool) {
-        match keycode {
-            Keycode::Up => self.snake.curr_dir = Direction::Up,
-            Keycode::Left => self.snake.curr_dir = Direction::Left,
-            Keycode::Down => self.snake.curr_dir = Direction::Down,
-            Keycode::Right => self.snake.curr_dir = Direction::Right,
-            _ => (),
+        let key = match keycode {
+            Keycode::Up => Some(Direction::Up),
+            Keycode::Left => Some(Direction::Left),
+            Keycode::Down => Some(Direction::Down),
+            Keycode::Right => Some(Direction::Right),
+            _ => None,
+        };
+
+        if let Some(dir) = key {
+            let opposite = !self.snake.curr_dir;
+            if dir != opposite {
+                self.delay = if repeat { FAST_SPEED } else { SLOW_SPEED };
+                self.last_key_moment = Instant::now();
+                self.snake.curr_dir = dir;
+            }
         }
-        self.delay = if repeat { FAST_SPEED } else { SLOW_SPEED };
-        self.last_key_moment = Instant::now();
     }
 }
 
