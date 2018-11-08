@@ -289,16 +289,19 @@ impl event::EventHandler for MainState {
     }
 }
 
+fn set_path(ctx: &mut Context) {
+    let mut base_path = if let Ok(manifest_dir) = env::var("CARGO_MANIFEST_DIR") {
+        path::PathBuf::from(manifest_dir)
+    } else {
+        path::PathBuf::new()
+    };
+    base_path.push("resources");
+    ctx.filesystem.mount(&base_path, true);
+}
 pub fn main() {
     let c = conf::Conf::new();
     let ctx = &mut Context::load_from_conf("snake", "ggez", c).unwrap();
-
-    if let Ok(manifest_dir) = env::var("CARGO_MANIFEST_DIR") {
-        let mut path = path::PathBuf::from(manifest_dir);
-        path.push("resources");
-        ctx.filesystem.mount(&path, true);
-    }
-
+    set_path(ctx);
     let state = &mut MainState::new(ctx).unwrap();
     event::run(ctx, state).unwrap();
 }
