@@ -1,9 +1,10 @@
 # snake-rs
 
-1. Needs sdl2 to build. On macOS:
+Needs sdl2 to build. On macOS:
 
     $ brew install sdl2
 
-2. Build and run:
+
+Then build and run:
 
     $ cargo run --release
