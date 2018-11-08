@@ -1,3 +1,4 @@
+use ggez::audio;
 use ggez::conf;
 use ggez::event;
 use ggez::event::{Keycode, Mod};
@@ -5,12 +6,11 @@ use ggez::graphics;
 use ggez::graphics::{DrawMode, Point2};
 use ggez::{Context, GameResult};
 use std::collections::VecDeque;
-use std::time::{Duration, Instant};
-use ggez::audio;
 use std::env;
 use std::path;
-use std::thread;
 use std::process;
+use std::thread;
+use std::time::{Duration, Instant};
 
 const BOARD_WIDTH: f32 = 800.0;
 const BOARD_HEIGHT: f32 = 600.0;
@@ -190,10 +190,7 @@ impl Bounds {
         }
     }
     fn check(&self, coord: (f32, f32)) -> bool {
-        coord.0 < self.width &&
-        coord.0 > 0.0 &&
-        coord.1 < self.height &&
-        coord.1 > 0.0 
+        coord.0 < self.width && coord.0 > 0.0 && coord.1 < self.height && coord.1 > 0.0
     }
 }
 struct MainState {
@@ -255,7 +252,7 @@ impl event::EventHandler for MainState {
         if self.last_move.elapsed() >= Duration::from_millis(self.delay) {
             self.last_move = Instant::now();
             self.snake.advance();
-            
+
             if !self.snake.bounds_check(&self.bounds) || !self.snake.body_check() {
                 self.game_over();
             }
