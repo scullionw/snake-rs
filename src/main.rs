@@ -7,9 +7,7 @@ use ggez::graphics::{DrawMode, Point2};
 use ggez::{Context, GameResult};
 use std::collections::VecDeque;
 use std::env;
-use std::path;
-use std::process;
-use std::thread;
+use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 const BOARD_WIDTH: f32 = 800.0;
@@ -18,8 +16,6 @@ const CELL_RADIUS: f32 = 5.0;
 const CELL_DIAMETER: f32 = 2.0 * CELL_RADIUS;
 const SLOW_SPEED: u64 = 250;
 const FAST_SPEED: u64 = 50;
-
-// TODO: Implement grids instead, sleep to reduce cpu and try to hit 60 fps.
 
 trait Locate {
     fn cartesian(&self) -> (f32, f32);
@@ -59,14 +55,14 @@ struct Apple {
 impl Apple {
     fn new() -> Apple {
         Apple {
-            x: CELL_RADIUS, //rand::random::<f32>() * (BOARD_WIDTH - CELL_DIAMETER) + CELL_RADIUS,
-            y: 400.0,       //rand::random::<f32>() * (BOARD_HEIGHT - CELL_DIAMETER) + CELL_RADIUS,
+            x: rand::random::<f32>() * (BOARD_WIDTH - CELL_DIAMETER) + CELL_RADIUS,
+            y: rand::random::<f32>() * (BOARD_HEIGHT - CELL_DIAMETER) + CELL_RADIUS,
             r: CELL_RADIUS,
         }
     }
     fn eaten(&mut self) {
-        self.x = rand::random::<f32>() * BOARD_WIDTH;
-        self.y = rand::random::<f32>() * BOARD_HEIGHT;
+        self.x = rand::random::<f32>() * (BOARD_WIDTH - CELL_DIAMETER) + CELL_RADIUS;
+        self.y = rand::random::<f32>() * (BOARD_HEIGHT - CELL_DIAMETER) + CELL_RADIUS;
     }
     fn draw(&self, ctx: &mut Context) -> GameResult<()> {
         graphics::set_color(ctx, graphics::Color::new(1.0, 0.0, 0.0, 1.0))?;
@@ -167,13 +163,11 @@ impl Snake {
     fn body_check(&self) -> bool {
         let mut collisions = 0;
         for cell in &self.body {
-            for other_cell in &self.body {
-                if cell.dist_to(other_cell) < CELL_RADIUS {
-                    collisions += 1;
-                }
+            if cell.dist_to(&self.head()) < CELL_RADIUS {
+                collisions += 1;
             }
         }
-        collisions <= self.body.len() + 1
+        collisions <= 1
     }
 }
 
@@ -193,18 +187,44 @@ impl Bounds {
         coord.0 < self.width && coord.0 > 0.0 && coord.1 < self.height && coord.1 > 0.0
     }
 }
+
+struct Score {
+    pos: graphics::Point2,
+    font: graphics::Font,
+    val: u32
+}
+
+impl Score {
+    fn new(ctx: &mut Context) -> Score {
+        Score {
+            pos: graphics::Point2::new(600.0, 20.0),
+            font: graphics::Font::new(ctx, "/DejaVuSerif.ttf", 24).unwrap(),
+            val: 0,
+        }
+    }
+    fn draw(&self, ctx: &mut Context) -> GameResult<()> {
+        let score_text = format!("Score: {}", self.val);
+        let text = graphics::Text::new(ctx, score_text.as_str(), &self.font)?;
+        graphics::draw(ctx, &text, self.pos, 0.0)?;
+        Ok(())
+    }
+    fn increment(&mut self) {
+        self.val += 1;
+    }
+}
+
 struct MainState {
     snake: Snake,
     apple: Apple,
+    bounds: Bounds,
     last_move: Instant,
-    delay: u64,
     last_key_moment: Instant,
     background_music: audio::Source,
     eating_sound: audio::Source,
-    bounds: Bounds,
     game_over_sound: audio::Source,
-    score: u32,
-    font: graphics::Font,
+    score: Score,
+    delay: u64,
+    game_over: bool,
 }
 
 impl MainState {
@@ -215,54 +235,45 @@ impl MainState {
         let s = MainState {
             snake: Snake::new(),
             apple: Apple::new(),
+            bounds: Bounds::new(),
             last_move: Instant::now(),
-            delay: SLOW_SPEED,
             last_key_moment: Instant::now(),
             background_music,
             eating_sound: audio::Source::new(ctx, "/gulp.ogg").unwrap(),
             game_over_sound: audio::Source::new(ctx, "/gameover.ogg").unwrap(),
-            bounds: Bounds::new(),
-            score: 0,
-            font: graphics::Font::new(ctx, "/DejaVuSerif.ttf", 24)?,
+            score: Score::new(ctx),
+            delay: SLOW_SPEED,
+            game_over: false,
         };
         Ok(s)
-    }
-    fn game_over(&self) -> ! {
-        //let dest_point = graphics::Point2::new(10.0, 10.0);
-        // graphics::draw(ctx, &self.text, dest_point, 0.0)?;
-        self.background_music.stop();
-        self.game_over_sound.play().unwrap();
-        thread::sleep(Duration::from_secs(3));
-        process::exit(0);
-    }
-    fn draw_score(&self, ctx: &mut Context) -> GameResult<()> {
-        let dest_point = graphics::Point2::new(600.0, 20.0);
-        let score_text = format!("Score: {}", self.score);
-        let text = graphics::Text::new(ctx, score_text.as_str(), &self.font)?;
-        graphics::draw(ctx, &text, dest_point, 0.0)?;
-        Ok(())
     }
 }
 
 impl event::EventHandler for MainState {
-    fn update(&mut self, _ctx: &mut Context) -> GameResult<()> {
-        if self.last_key_moment.elapsed() >= Duration::from_millis(self.delay) {
-            self.delay = SLOW_SPEED;
-        }
-        if self.last_move.elapsed() >= Duration::from_millis(self.delay) {
-            self.last_move = Instant::now();
-            self.snake.advance();
-
-            if !self.snake.bounds_check(&self.bounds) || !self.snake.body_check() {
-                self.game_over();
+    fn update(&mut self, ctx: &mut Context) -> GameResult<()> {
+        if !self.game_over {
+            if self.last_key_moment.elapsed() >= Duration::from_millis(self.delay) {
+                self.delay = SLOW_SPEED;
             }
-
-            if self.apple.dist_to(&self.snake.head()) < CELL_DIAMETER {
-                self.eating_sound.play().unwrap();
-                self.apple.eaten();
-                self.score += 1;
-            } else {
-                self.snake.shorten_tail();
+            if self.last_move.elapsed() >= Duration::from_millis(self.delay) {
+                self.last_move = Instant::now();
+                self.snake.advance();
+                if !self.snake.bounds_check(&self.bounds) || !self.snake.body_check() {
+                    self.game_over = true;
+                    self.background_music.stop();
+                    self.game_over_sound.play().unwrap();
+                    while self.game_over_sound.playing() {
+                        ggez::timer::yield_now();
+                    }
+                    ctx.quit()?;
+                }
+                if self.apple.dist_to(&self.snake.head()) < CELL_DIAMETER {
+                    self.eating_sound.play().unwrap();
+                    self.apple.eaten();
+                    self.score.increment();
+                } else {
+                    self.snake.shorten_tail();
+                }
             }
         }
         Ok(())
@@ -272,8 +283,9 @@ impl event::EventHandler for MainState {
         graphics::clear(ctx);
         self.snake.draw(ctx)?;
         self.apple.draw(ctx)?;
-        self.draw_score(ctx)?;
+        self.score.draw(ctx)?;
         graphics::present(ctx);
+        ggez::timer::yield_now();
         Ok(())
     }
     fn key_down_event(&mut self, _ctx: &mut Context, keycode: Keycode, _keymod: Mod, repeat: bool) {
@@ -289,19 +301,16 @@ impl event::EventHandler for MainState {
     }
 }
 
-fn set_path(ctx: &mut Context) {
-    let mut base_path = if let Ok(manifest_dir) = env::var("CARGO_MANIFEST_DIR") {
-        path::PathBuf::from(manifest_dir)
-    } else {
-        path::PathBuf::new()
-    };
-    base_path.push("resources");
-    ctx.filesystem.mount(&base_path, true);
+fn resource_path() -> PathBuf {
+    match env::var("CARGO_MANIFEST_DIR") {
+        Ok(manifest_dir) => Path::new(&manifest_dir).join("resources"),
+        Err(_) => PathBuf::from("resources")
+    }
 }
 pub fn main() {
     let c = conf::Conf::new();
     let ctx = &mut Context::load_from_conf("snake", "ggez", c).unwrap();
-    set_path(ctx);
+    ctx.filesystem.mount(&resource_path(), true);
     let state = &mut MainState::new(ctx).unwrap();
     event::run(ctx, state).unwrap();
 }
