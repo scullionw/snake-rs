@@ -191,7 +191,7 @@ impl Bounds {
 struct Score {
     pos: graphics::Point2,
     font: graphics::Font,
-    val: u32
+    val: u32,
 }
 
 impl Score {
@@ -304,7 +304,7 @@ impl event::EventHandler for MainState {
 fn resource_path() -> PathBuf {
     match env::var("CARGO_MANIFEST_DIR") {
         Ok(manifest_dir) => Path::new(&manifest_dir).join("resources"),
-        Err(_) => PathBuf::from("resources")
+        Err(_) => PathBuf::from("resources"),
     }
 }
 pub fn main() {
