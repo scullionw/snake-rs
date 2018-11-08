@@ -14,8 +14,8 @@ const BOARD_WIDTH: f32 = 800.0;
 const BOARD_HEIGHT: f32 = 600.0;
 const CELL_RADIUS: f32 = 5.0;
 const CELL_DIAMETER: f32 = 2.0 * CELL_RADIUS;
-const SLOW_SPEED: u64 = 250;
-const FAST_SPEED: u64 = 50;
+const SLOW_SPEED: u64 = 125;
+const FAST_SPEED: u64 = 25;
 
 trait Locate {
     fn cartesian(&self) -> (f32, f32);
