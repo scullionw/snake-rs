@@ -19,7 +19,7 @@ const CELL_DIAMETER: f32 = 2.0 * CELL_RADIUS;
 const SLOW_SPEED: u64 = 250;
 const FAST_SPEED: u64 = 50;
 
-// TODO: ggez::timer::yield, tempo matching article, check out example to compare
+// TODO: Implement grids instead, sleep to reduce cpu and try to hit 60 fps.
 
 trait Locate {
     fn cartesian(&self) -> (f32, f32);
