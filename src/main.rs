@@ -5,12 +5,12 @@ use ggez::event::{Keycode, Mod};
 use ggez::graphics;
 use ggez::graphics::{DrawMode, Point2};
 use ggez::{Context, GameResult};
+use rand::Rng;
 use std::collections::VecDeque;
 use std::env;
+use std::ops::Not;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
-use rand::Rng;
-use std::ops::Not;
 
 const BOARD_WIDTH: u32 = 800;
 const BOARD_HEIGHT: u32 = 600;
@@ -77,7 +77,6 @@ impl GridPosition {
         let y = CELL_RADIUS + (slots / 2) * CELL_DIAMETER;
         y as f32
     }
-
 }
 
 impl Apple {
