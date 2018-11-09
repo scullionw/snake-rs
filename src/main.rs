@@ -19,6 +19,9 @@ const CELL_DIAMETER: u32 = 2 * CELL_RADIUS;
 const SLOW_SPEED: u64 = 125;
 const FAST_SPEED: u64 = 25;
 
+// TODO
+// Buffer unique keyinput
+
 trait Locate {
     fn cartesian(&self) -> (f32, f32);
     fn dist_to<T: Locate>(&self, other: &T) -> f32 {
@@ -54,9 +57,9 @@ struct Apple {
     r: f32,
 }
 
-struct GridPosition;
+struct Grid;
 
-impl GridPosition {
+impl Grid {
     fn random_x() -> f32 {
         let mut rng = rand::thread_rng();
         let x = CELL_RADIUS + rng.gen_range(0, BOARD_WIDTH / CELL_DIAMETER) * CELL_DIAMETER;
@@ -82,14 +85,14 @@ impl GridPosition {
 impl Apple {
     fn new() -> Apple {
         Apple {
-            x: GridPosition::random_x(),
-            y: GridPosition::random_y(),
+            x: Grid::random_x(),
+            y: Grid::random_y(),
             r: CELL_RADIUS as f32,
         }
     }
     fn eaten(&mut self) {
-        self.x = GridPosition::random_x();
-        self.y = GridPosition::random_y();
+        self.x = Grid::random_x();
+        self.y = Grid::random_y();
     }
     fn draw(&self, ctx: &mut Context) -> GameResult<()> {
         graphics::set_color(ctx, graphics::Color::new(1.0, 0.0, 0.0, 1.0))?;
@@ -113,22 +116,10 @@ impl SnakeCell {
     }
     fn next_to(&self, dir: Direction) -> SnakeCell {
         match dir {
-            Direction::Up => SnakeCell {
-                y: self.y - CELL_DIAMETER as f32,
-                ..*self
-            },
-            Direction::Down => SnakeCell {
-                y: self.y + CELL_DIAMETER as f32,
-                ..*self
-            },
-            Direction::Left => SnakeCell {
-                x: self.x - CELL_DIAMETER as f32,
-                ..*self
-            },
-            Direction::Right => SnakeCell {
-                x: self.x + CELL_DIAMETER as f32,
-                ..*self
-            },
+            Direction::Up => SnakeCell::new(self.x, self.y - CELL_DIAMETER as f32),
+            Direction::Down => SnakeCell::new(self.x, self.y + CELL_DIAMETER as f32),
+            Direction::Left => SnakeCell::new(self.x - CELL_DIAMETER as f32, self.y),
+            Direction::Right => SnakeCell::new(self.x + CELL_DIAMETER as f32, self.y),
         }
     }
     fn draw(&self, ctx: &mut Context) -> GameResult<()> {
@@ -170,7 +161,7 @@ impl Not for Direction {
 
 impl Snake {
     fn new() -> Snake {
-        let head = SnakeCell::new(GridPosition::middle_x(), GridPosition::middle_y());
+        let head = SnakeCell::new(Grid::middle_x(), Grid::middle_y());
         let body = vec![head, head.next_to(Direction::Left)]
             .into_iter()
             .collect();
@@ -216,10 +207,10 @@ struct Bounds {
 }
 
 impl Bounds {
-    fn new() -> Bounds {
+    fn new(width: f32, height: f32) -> Bounds {
         Bounds {
-            width: BOARD_WIDTH as f32,
-            height: BOARD_HEIGHT as f32,
+            width,
+            height,
         }
     }
     fn check(&self, coord: (f32, f32)) -> bool {
@@ -274,7 +265,7 @@ impl MainState {
         let s = MainState {
             snake: Snake::new(),
             apple: Apple::new(),
-            bounds: Bounds::new(),
+            bounds: Bounds::new(BOARD_WIDTH as f32, BOARD_HEIGHT as f32),
             last_move: Instant::now(),
             last_key_moment: Instant::now(),
             background_music,
@@ -353,6 +344,7 @@ fn resource_path() -> PathBuf {
         Err(_) => PathBuf::from("resources"),
     }
 }
+
 pub fn main() {
     let c = conf::Conf::new();
     let ctx = &mut Context::load_from_conf("snake", "ggez", c).unwrap();
