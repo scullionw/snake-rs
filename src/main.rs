@@ -1,9 +1,8 @@
 use ggez::audio;
-use ggez::conf;
 use ggez::event;
-use ggez::event::{Keycode, Mod};
+use ggez::event::{KeyCode, KeyMods};
 use ggez::graphics;
-use ggez::graphics::{DrawMode, Point2};
+use ggez::graphics::{DrawMode};
 use ggez::{Context, GameResult};
 use rand::Rng;
 use std::collections::VecDeque;
@@ -92,14 +91,16 @@ impl Apple {
         self.y = GridPosition::random_y();
     }
     fn draw(&self, ctx: &mut Context) -> GameResult<()> {
-        graphics::set_color(ctx, graphics::Color::new(1.0, 0.0, 0.0, 1.0))?;
-        graphics::circle(
+        let apple = graphics::Mesh::new_circle(
             ctx,
-            DrawMode::Fill,
-            Point2::new(self.x, self.y),
+            graphics::DrawMode::fill(),
+            ggez::mint::Point2 { x: self.x, y: self.y },
             self.r,
             0.1,
-        )
+            graphics::Color::new(1.0, 0.0, 0.0, 1.0)
+        )?;
+        graphics::draw(ctx, &apple, (ggez::mint::Point2 { x: 0.0, y: 0.0 },))?;
+        Ok(())
     }
 }
 
@@ -132,13 +133,15 @@ impl SnakeCell {
         }
     }
     fn draw(&self, ctx: &mut Context) -> GameResult<()> {
-        graphics::circle(
+        let snake_cell = graphics::Mesh::new_circle(
             ctx,
-            DrawMode::Fill,
-            Point2::new(self.x, self.y),
+            graphics::DrawMode::fill(),
+            ggez::mint::Point2 { x: self.x, y: self.y },
             self.r,
             0.1,
-        )
+            graphics::Color::new(1.0, 0.0, 0.0, 1.0)
+        )?;
+        graphics::draw(ctx, &snake_cell, (ggez::mint::Point2 { x: 0.0, y: 0.0 },))
     }
 }
 
@@ -190,7 +193,7 @@ impl Snake {
         *self.body.front().unwrap()
     }
     fn draw(&self, ctx: &mut Context) -> GameResult<()> {
-        graphics::set_color(ctx, graphics::Color::new(1.0, 1.0, 1.0, 1.0))?;
+        //graphics::set_color(ctx, graphics::Color::new(1.0, 1.0, 1.0, 1.0))?;
         for cell in &self.body {
             cell.draw(ctx)?;
         }
@@ -228,7 +231,7 @@ impl Bounds {
 }
 
 struct Score {
-    pos: graphics::Point2,
+    pos: ggez::mint::Point2<f32>,
     font: graphics::Font,
     val: u32,
 }
@@ -236,15 +239,15 @@ struct Score {
 impl Score {
     fn new(ctx: &mut Context) -> Score {
         Score {
-            pos: graphics::Point2::new(600.0, 20.0),
-            font: graphics::Font::new(ctx, "/DejaVuSerif.ttf", 24).unwrap(),
+            pos: ggez::mint::Point2 { x: 600.0, y: 20.0 },
+            font: graphics::Font::new(ctx, "/DejaVuSerif.ttf").unwrap(),
             val: 0,
         }
     }
     fn draw(&self, ctx: &mut Context) -> GameResult<()> {
         let score_text = format!("Score: {}", self.val);
-        let text = graphics::Text::new(ctx, score_text.as_str(), &self.font)?;
-        graphics::draw(ctx, &text, self.pos, 0.0)?;
+        let text = graphics::Text::new((score_text.as_str(), self.font , 24.0));
+        //graphics::draw(ctx, &text, self.pos, (ggez::mint::Point2 { x: 0.0, y: 0.0 },))?;
         Ok(())
     }
     fn increment(&mut self) {
@@ -269,8 +272,8 @@ struct MainState {
 impl MainState {
     fn new(ctx: &mut Context) -> GameResult<MainState> {
         let mut background_music = audio::Source::new(ctx, "/crystals.ogg").unwrap();
-        background_music.set_volume(0.4);
-        background_music.play().unwrap();
+        //background_music.set_volume(0.4);
+        //background_music.play().unwrap();
         let s = MainState {
             snake: Snake::new(),
             apple: Apple::new(),
@@ -299,15 +302,15 @@ impl event::EventHandler for MainState {
                 self.snake.advance();
                 if !self.snake.bounds_check(&self.bounds) || !self.snake.body_check() {
                     self.game_over = true;
-                    self.background_music.stop();
-                    self.game_over_sound.play().unwrap();
-                    while self.game_over_sound.playing() {
-                        ggez::timer::yield_now();
-                    }
-                    ctx.quit()?;
+                    //self.background_music.stop();
+                    //self.game_over_sound.play().unwrap();
+                    // while self.game_over_sound.playing() {
+                    //     ggez::timer::yield_now();
+                    // }
+                    ggez::quit(ctx);
                 }
                 if self.apple.dist_to(&self.snake.head()) < CELL_DIAMETER as f32 {
-                    self.eating_sound.play().unwrap();
+                    //self.eating_sound.play().unwrap();
                     self.apple.eaten();
                     self.score.increment();
                 } else {
@@ -319,20 +322,20 @@ impl event::EventHandler for MainState {
     }
 
     fn draw(&mut self, ctx: &mut Context) -> GameResult<()> {
-        graphics::clear(ctx);
+        graphics::clear(ctx, [0.1, 0.2, 0.3, 1.0].into());
         self.snake.draw(ctx)?;
         self.apple.draw(ctx)?;
         self.score.draw(ctx)?;
-        graphics::present(ctx);
+        graphics::present(ctx)?;
         ggez::timer::yield_now();
         Ok(())
     }
-    fn key_down_event(&mut self, _ctx: &mut Context, keycode: Keycode, _keymod: Mod, repeat: bool) {
+    fn key_down_event(&mut self, _ctx: &mut Context, keycode: KeyCode, _keymod: KeyMods, repeat: bool) {
         let key = match keycode {
-            Keycode::Up => Some(Direction::Up),
-            Keycode::Left => Some(Direction::Left),
-            Keycode::Down => Some(Direction::Down),
-            Keycode::Right => Some(Direction::Right),
+            KeyCode::Up => Some(Direction::Up),
+            KeyCode::Left => Some(Direction::Left),
+            KeyCode::Down => Some(Direction::Down),
+            KeyCode::Right => Some(Direction::Right),
             _ => None,
         };
 
@@ -353,10 +356,10 @@ fn resource_path() -> PathBuf {
         Err(_) => PathBuf::from("resources"),
     }
 }
-pub fn main() {
-    let c = conf::Conf::new();
-    let ctx = &mut Context::load_from_conf("snake", "ggez", c).unwrap();
-    ctx.filesystem.mount(&resource_path(), true);
+pub fn main() -> GameResult<()> {
+    let cb = ggez::ContextBuilder::new("snake", "ggez").add_resource_path(resource_path());
+    let (ctx, event_loop) = &mut cb.build()?;
+    println!("HIDPI: {}", graphics::hidpi_factor(ctx));
     let state = &mut MainState::new(ctx).unwrap();
-    event::run(ctx, state).unwrap();
+    event::run(ctx, event_loop, state)
 }
